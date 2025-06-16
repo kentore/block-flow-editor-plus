@@ -1,16 +1,12 @@
-
-import React, { useState } from 'react';
-import { Send, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Send, Settings, ChevronDown, ChevronRight, Copy, Check, AlertCircle, Play, Pause, Download, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
-import AudioPlayer from './AudioPlayer';
-import ApiConfigForm from './ApiConfigForm';
-import { sendApiRequest } from '../services/apiService';
-import { generateAudioFilename } from '../utils/filenameGenerator';
 
 interface TextElement {
   id: string;
@@ -36,8 +32,10 @@ const ApiPanel: React.FC<ApiPanelProps> = ({ textBlocks, selectedLanguage = 'spa
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
   const [requestMethod, setRequestMethod] = useState('POST');
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Get applied paragraphs AND titles
   const appliedBlocks = textBlocks.filter(block => block.applied);
@@ -61,6 +59,62 @@ const ApiPanel: React.FC<ApiPanelProps> = ({ textBlocks, selectedLanguage = 'spa
     })
     .join('\n\n');
 
+  // Function to generate filename based on language and content
+  const generateFilename = () => {
+    // Language mapping to remove accents and ñ
+    const languageMap: { [key: string]: string } = {
+      'spanish': 'espanol',
+      'english': 'english',
+      'french': 'frances', 
+      'german': 'aleman',
+      'italian': 'italiano',
+      'polish': 'polaco',
+      'portuguese': 'portugues',
+      'arabic': 'arabe',
+      'hindi': 'hindi',
+      'japanese': 'japones',
+      'korean': 'coreano',
+      'chinese': 'chino',
+      'turkish': 'turco',
+      'romanian': 'rumano',
+      'dutch': 'holandes',
+      'greek': 'griego',
+      'vietnamese': 'vietnamita',
+      'bulgarian': 'bulgaro',
+      'finnish': 'finlandes',
+      'croatian': 'croata',
+      'swedish': 'sueco',
+      'norwegian': 'noruego',
+      'danish': 'danes'
+    };
+
+    const languageName = languageMap[selectedLanguage] || 'audio';
+    
+    // Check if applied blocks are before first title (intro paragraphs)
+    const firstTitleIndex = textBlocks.findIndex(block => block.isTitle);
+    const hasIntroContent = appliedBlocks.some(block => {
+      const blockIndex = textBlocks.findIndex(tb => tb.id === block.id);
+      return !block.isTitle && (firstTitleIndex === -1 || blockIndex < firstTitleIndex);
+    });
+    
+    // Check if we have only titles
+    const hasOnlyTitles = appliedBlocks.every(block => block.isTitle);
+    
+    // Check if we have mixed content
+    const hasTitles = appliedBlocks.some(block => block.isTitle);
+    const hasParagraphs = appliedBlocks.some(block => !block.isTitle);
+    
+    if (hasIntroContent && !hasTitles) {
+      return `${languageName}_intro.mp3`;
+    } else if (hasOnlyTitles) {
+      return `${languageName}_titulos.mp3`;
+    } else if (hasTitles && hasParagraphs) {
+      return `${languageName}_contenido.mp3`;
+    } else {
+      return `${languageName}_parrafos.mp3`;
+    }
+  };
+
   const handleSendRequest = async () => {
     if (!apiUrl) {
       toast({
@@ -83,30 +137,111 @@ const ApiPanel: React.FC<ApiPanelProps> = ({ textBlocks, selectedLanguage = 'spa
     setIsLoading(true);
     setResponse('');
     setAudioUrl(null);
+    setIsPlaying(false);
 
     try {
-      const result = await sendApiRequest({
-        apiUrl,
-        apiKey,
-        customHeaders,
-        requestMethod,
-        appliedBlocks,
-        appliedContent,
-        appliedTitles,
-        appliedParagraphs
+      // Parse custom headers
+      let headers = {};
+      try {
+        headers = JSON.parse(customHeaders);
+      } catch (e) {
+        headers = { "Content-Type": "application/json" };
+        toast({
+          title: "Advertencia",
+          description: "Headers inválidos, usando Content-Type por defecto",
+          variant: "destructive"
+        });
+      }
+
+      // Add API key to headers if provided
+      if (apiKey) {
+        headers = { ...headers, "Authorization": `Bearer ${apiKey}` };
+      }
+
+      const requestBody = {
+        content: appliedContent,
+        elements: appliedBlocks.map(block => ({
+          id: block.id,
+          text: block.isTitle ? block.text.substring(2) : block.text, // Remove first 2 chars from titles
+          isTitle: block.isTitle,
+          number: block.number,
+          titleNumber: block.titleNumber
+        })),
+        titles: appliedTitles.map(title => ({
+          id: title.id,
+          text: title.text.substring(2), // Remove first 2 characters from title text
+          titleNumber: title.titleNumber
+        })),
+        paragraphs: appliedParagraphs.map(p => ({
+          id: p.id,
+          text: p.text,
+          number: p.number
+        })),
+        totalElements: appliedBlocks.length,
+        totalTitles: appliedTitles.length,
+        totalParagraphs: appliedParagraphs.length,
+        totalCharacters: appliedContent.length,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('Enviando petición a:', apiUrl);
+      console.log('Headers:', headers);
+      console.log('Body:', requestBody);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 300 seconds timeout
+
+      const response = await fetch(apiUrl, {
+        method: requestMethod,
+        headers,
+        body: requestMethod !== 'GET' ? JSON.stringify(requestBody) : undefined,
+        signal: controller.signal,
+        mode: 'cors',
       });
 
-      if (result.isAudio) {
-        setAudioUrl(result.audioUrl);
+      clearTimeout(timeoutId);
+
+      // Check if response is audio
+      const contentType = response.headers.get('content-type');
+      const isAudio = contentType && (contentType.includes('audio/') || contentType.includes('audio/mpeg'));
+
+      if (isAudio) {
+        // Handle audio response
+        const audioBlob = await response.blob();
+        const audioObjectUrl = URL.createObjectURL(audioBlob);
+        setAudioUrl(audioObjectUrl);
+        
+        const responseDetails = `Status: ${response.status} ${response.statusText}\n` +
+          `Content-Type: ${contentType}\n` +
+          `Audio file received successfully!\n` +
+          `File size: ${(audioBlob.size / 1024).toFixed(2)} KB`;
+        
+        setResponse(responseDetails);
+        
         toast({
           title: "Audio recibido",
           description: "La API devolvió un archivo de audio MP3"
         });
+      } else {
+        // Handle text response
+        const responseText = await response.text();
+        let formattedResponse = '';
+
+        try {
+          const jsonResponse = JSON.parse(responseText);
+          formattedResponse = JSON.stringify(jsonResponse, null, 2);
+        } catch (e) {
+          formattedResponse = responseText;
+        }
+
+        const responseDetails = `Status: ${response.status} ${response.statusText}\n` +
+          `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}\n\n` +
+          `Body:\n${formattedResponse}`;
+
+        setResponse(responseDetails);
       }
 
-      setResponse(result.response);
-
-      if (result.status >= 200 && result.status < 300) {
+      if (response.ok) {
         toast({
           title: "Éxito",
           description: `Petición enviada correctamente. ${appliedBlocks.length} elementos procesados (${appliedTitles.length} títulos, ${appliedParagraphs.length} párrafos).`
@@ -114,7 +249,7 @@ const ApiPanel: React.FC<ApiPanelProps> = ({ textBlocks, selectedLanguage = 'spa
       } else {
         toast({
           title: "Advertencia",
-          description: `La API respondió con código ${result.status}: ${result.statusText}`,
+          description: `La API respondió con código ${response.status}: ${response.statusText}`,
           variant: "destructive"
         });
       }
@@ -159,6 +294,36 @@ Soluciones sugeridas:
     }
   };
 
+  const toggleAudioPlayback = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+  };
+
+  const downloadAudio = () => {
+    if (audioUrl) {
+      const filename = generateFilename();
+      const a = document.createElement('a');
+      a.href = audioUrl;
+      a.download = filename;
+      a.click();
+      toast({
+        title: "Descarga iniciada",
+        description: `Descargando: ${filename}`
+      });
+    }
+  };
+
   const copyResponse = async () => {
     if (response) {
       try {
@@ -177,6 +342,14 @@ Soluciones sugeridas:
         });
       }
     }
+  };
+
+  const testWithHttpbin = () => {
+    setApiUrl('https://httpbin.org/post');
+    toast({
+      title: "URL de prueba configurada",
+      description: "httpbin.org es perfecto para probar peticiones API"
+    });
   };
 
   return (
@@ -200,16 +373,69 @@ Soluciones sugeridas:
         
         <CollapsibleContent>
           <div className="p-4 pt-0 space-y-4">
-            <ApiConfigForm
-              apiUrl={apiUrl}
-              setApiUrl={setApiUrl}
-              apiKey={apiKey}
-              setApiKey={setApiKey}
-              customHeaders={customHeaders}
-              setCustomHeaders={setCustomHeaders}
-              requestMethod={requestMethod}
-              setRequestMethod={setRequestMethod}
-            />
+            {/* CORS Warning */}
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="text-sm text-amber-800 dark:text-amber-200">
+                <p className="font-medium mb-1">Problemas comunes de CORS:</p>
+                <p>Si obtienes "Failed to fetch", la API debe permitir peticiones desde este dominio.</p>
+              </div>
+            </div>
+
+            {/* API Configuration */}
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Label htmlFor="api-url" className="text-sm font-medium">URL de la API</Label>
+                  <Input
+                    id="api-url"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    placeholder="https://api.ejemplo.com/procesar"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="w-24 pt-6">
+                  <select
+                    value={requestMethod}
+                    onChange={(e) => setRequestMethod(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-background text-foreground"
+                  >
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="GET">GET</option>
+                  </select>
+                </div>
+              </div>
+
+              <Button onClick={testWithHttpbin} variant="outline" size="sm" className="gap-2">
+                🧪 Usar httpbin.org para pruebas
+              </Button>
+
+              <div>
+                <Label htmlFor="api-key" className="text-sm font-medium">API Key (opcional)</Label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Tu API key"
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="headers" className="text-sm font-medium">Headers personalizados (JSON)</Label>
+                <Textarea
+                  id="headers"
+                  value={customHeaders}
+                  onChange={(e) => setCustomHeaders(e.target.value)}
+                  placeholder='{"Content-Type": "application/json"}'
+                  className="mt-1 h-20 font-mono text-sm"
+                />
+              </div>
+            </div>
 
             {/* Content Preview */}
             {appliedBlocks.length > 0 && (
@@ -245,10 +471,43 @@ Soluciones sugeridas:
 
             {/* Audio Player */}
             {audioUrl && (
-              <AudioPlayer
-                audioUrl={audioUrl}
-                filename={generateAudioFilename(appliedBlocks, textBlocks, selectedLanguage)}
-              />
+              <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <Label className="text-sm font-medium text-blue-800 dark:text-blue-200">Audio Response</Label>
+                  </div>
+                  <Button
+                    onClick={downloadAudio}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Descargar
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={toggleAudioPlayback}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    {isPlaying ? 'Pausar' : 'Reproducir'}
+                  </Button>
+                  
+                  <audio
+                    ref={audioRef}
+                    src={audioUrl}
+                    onEnded={handleAudioEnded}
+                    controls
+                    className="flex-1 h-8"
+                  />
+                </div>
+              </div>
             )}
 
             {/* Response */}

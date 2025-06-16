@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Hash, FileText, ChevronRight, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -21,8 +22,6 @@ interface OutlinePanelProps {
   collapsedTitles: Set<string>;
   selectedParagraphs: Set<string>;
   onToggleParagraphSelection: (paragraphId: string) => void;
-  selectedLanguage: string;
-  onLanguageChange: (language: string) => void;
 }
 
 // Array de colores para las aplicaciones con soporte para modo oscuro
@@ -71,10 +70,9 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
   onScrollToBlock, 
   collapsedTitles,
   selectedParagraphs,
-  onToggleParagraphSelection,
-  selectedLanguage,
-  onLanguageChange
+  onToggleParagraphSelection
 }) => {
+  const [selectedLanguage, setSelectedLanguage] = React.useState<string>('spanish');
 
   // Función para obtener el color de un párrafo aplicado
   const getAppliedColor = (paragraph: TextElement) => {
@@ -258,7 +256,7 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
       {/* Language Selector - Outside of the card */}
       <div className="space-y-2 px-1">
         <label className="text-sm font-medium text-foreground">Idioma:</label>
-        <Select value={selectedLanguage} onValueChange={onLanguageChange}>
+        <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
           <SelectTrigger className="w-full min-w-[400px]">
             <SelectValue placeholder="Selecciona un idioma" />
           </SelectTrigger>
