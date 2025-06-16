@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { FileText, Plus, Download, Upload, Eye, EyeOff, Trash2, Copy, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ const Index = () => {
   const [collapsedTitles, setCollapsedTitles] = useState<Set<string>>(new Set());
   const [selectedParagraphs, setSelectedParagraphs] = useState<Set<string>>(new Set());
   const [showSelectionPopup, setShowSelectionPopup] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('spanish');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blockRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -577,7 +579,7 @@ const Index = () => {
             </Card>
 
             {/* API Panel */}
-            <ApiPanel textBlocks={textBlocks} />
+            <ApiPanel textBlocks={textBlocks} selectedLanguage={selectedLanguage} />
           </div>
 
           {/* Right Panel - Outline */}
@@ -588,6 +590,8 @@ const Index = () => {
               collapsedTitles={collapsedTitles}
               selectedParagraphs={selectedParagraphs}
               onToggleParagraphSelection={toggleParagraphSelection}
+              selectedLanguage={selectedLanguage}
+              onLanguageChange={setSelectedLanguage}
             />
           </div>
         </div>
