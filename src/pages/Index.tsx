@@ -510,33 +510,38 @@ const Index = () => {
         <div className="flex gap-6 flex-1 min-h-0">
           {/* Left Panel - Main Content */}
           <div className="flex-1 flex flex-col space-y-6 min-w-0">
-            {/* Original Text Section */}
-            <Card className="p-6 shadow-lg border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Original Text</h2>
-              <Textarea
-                value={originalText}
-                onChange={(e) => setOriginalText(e.target.value)}
-                placeholder="Paste or type your text here..."
-                className="min-h-[150px] text-base resize-none border-gray-200 dark:border-gray-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:bg-gray-900 dark:text-gray-200"
-              />
-              <div className="flex gap-3 mt-4">
-                <Button onClick={createParagraphs} className="bg-green-600 hover:bg-green-700 gap-2">
-                  <FileText className="w-4 h-4" />
-                  Create Paragraphs
-                </Button>
-                <Button onClick={pasteText} variant="outline" className="gap-2">
-                  <Copy className="w-4 h-4" />
-                  Paste
-                </Button>
-                <Button onClick={clearOriginalText} variant="outline">
-                  Clear
-                </Button>
-                <Button onClick={addEmptyParagraph} variant="outline" className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add Empty Paragraph
-                </Button>
-              </div>
-            </Card>
+            {/* Original Text Section with Statistics Panel */}
+            <div className="flex gap-4">
+              <Card className="flex-1 p-6 shadow-lg border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+                <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Original Text</h2>
+                <Textarea
+                  value={originalText}
+                  onChange={(e) => setOriginalText(e.target.value)}
+                  placeholder="Paste or type your text here..."
+                  className="min-h-[150px] text-base resize-none border-gray-200 dark:border-gray-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:bg-gray-900 dark:text-gray-200"
+                />
+                <div className="flex gap-3 mt-4">
+                  <Button onClick={createParagraphs} className="bg-green-600 hover:bg-green-700 gap-2">
+                    <FileText className="w-4 h-4" />
+                    Create Paragraphs
+                  </Button>
+                  <Button onClick={pasteText} variant="outline" className="gap-2">
+                    <Copy className="w-4 h-4" />
+                    Paste
+                  </Button>
+                  <Button onClick={clearOriginalText} variant="outline">
+                    Clear
+                  </Button>
+                  <Button onClick={addEmptyParagraph} variant="outline" className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add Empty Paragraph
+                  </Button>
+                </div>
+              </Card>
+
+              {/* Statistics Panel positioned next to Original Text */}
+              <StatsPanel textBlocks={textBlocks} />
+            </div>
 
             {/* Text Blocks Section */}
             <Card className="flex-1 p-6 shadow-lg border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm min-h-0">
@@ -570,9 +575,6 @@ const Index = () => {
                 )}
               </div>
             </Card>
-
-            {/* Statistics Panel */}
-            <StatsPanel textBlocks={textBlocks} />
 
             {/* API Panel */}
             <ApiPanel textBlocks={textBlocks} />
